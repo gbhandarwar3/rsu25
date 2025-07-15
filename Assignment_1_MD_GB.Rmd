@@ -1,29 +1,131 @@
 ---
-title: ''
+title: 'R assignment 1'
 output: html_document
-date: "2025-07-13"
+date: "2025-07-12"
 ---
+```{r}
+# IMPORTS
+library(tidyverse)
+library(ggplot2)
+library(tidyr)
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+```{r}
+# import csv and load them in to see them and put into dataframe
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+genetable1 <- read.csv("QBS103_GSE157103_genes.csv")
+genetable2 <- read.csv("QBS103_GSE157103_series_matrix-1.csv")
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
 ```
 
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r}
+genetable1
+```
+```{r}
+genetable2
+```
+```{r}
+genetable2
+```
+```{r}
+colnames(genetable1)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+
+# make this data to long data using pivot longer so we can merge on participant ID
+df_new_long <- genetable1 %>%
+  pivot_longer(
+    cols = -X,
+    names_to = "participant_id",
+    values_to = "value"
+  )
+```
+
+```{r}
+# check the shape of new long data
+df_new_long
+```
+
+```{r}
+# merged now the both dataframes based on participant id column. 
+
+merged_df <- merge(df_new_long, genetable2, by = "participant_id")
+merged_df
+```
+```{r}
+str(merged_df)
+```
+
+```{r}
+# ONE GENE -> x IS gene stored in column X which will be ABAT
+# ONE CONTINUOUS COVARIATE -> AGE lets choose age  
+# 2 CATEGORICAL VARIABLES -> lets choose SEX and ICU STATUS (binary yes or no)
+
+# hypothesis of why i chose these variables is because as we age we are exposed to environmental factors which can cause genes to express differently or maybe even mutate
+# therefore age is interesting 
+# the gene is chose is ABAT
+# for categorical we can take the icu or non icu staus and sex (male vs female)
+
+```
+
+```{r}
+# CONVERTING AGE TO NUMERIC FOR FUTURE USE IF I NEED IT TO BE SO LATER SINCE IT WAS CHAR
+merged_df$age <- as.numeric(merged_df$age)
+```
+
+```{r}
+# Check age col min and max to determine appropriate visuals for boxplot and parameters
+# there are NAs so i will just do it manually, 39 and 89
+# AGE COLUMN IS A CHAR SO I WANT TO CONVERT TO NUMERIC FOR HISTOGRAM PLOTTING.
+
+min(merged_df$age)
+max(merged_df$age)
+
+# This might be too advanced but i normally remove NAs but for now I will just go ahead and plot 
+```
+
+
+
+```{r}
+
+# HISTOGRAM FOR ABT EXPRESSION
+# I chose 10 bins for optimal shape and analysis for skews and such
+# 10 bins gives me info about the shape to analyze it too (skew and such of histograms)
+
+ggplot(merged_df %>% filter(X=="ABAT"), aes(x=value)) + geom_histogram(bins=10,color="white", fill="pink")+ labs(title = "Distribution of ABAT Expression",x = "ABAT Gene Expression", y= "Count/Frequency")
+
+```
+```{r}
+# SCATTER PLOT OF CONTINUOUS COVAR WHICH IS FERRITIN AND THE GENE WHICH IS ABAT
+# it is first filtering by gene which is ABAT IN THIS CASE, THEN TAKING OUR AGE FOR THOSE IN ABAT, AND THEN THE EXPRESSION VALUES AND THEN PLOTTING IT. 
+# intervals for ages
+
+# I want to find the line of best fit and it's slope and add that, but to be fair, this data is quite scattered
+# the line of best fit in this case would maybe not be linear?
+# i just added a linear line for the sake of it, but it is technically not the best fit but still useful to see somewhat of a trend
+ggplot(merged_df %>% filter(X == "ABAT"), aes(x = age, y = value)) +
+  geom_point(alpha = 0.7) +geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "ABAT Expression vs Age",x = "Age",y = "ABAT Expression")
+```
+
+
+```{r}
+
+# BOXPLOT FOR ABAT GENE SEPARATED BY 
+# gene expression separated by both categorical covariates SEX AND ICU_STATUS
+# 1 person is UNKNOWN (I would normally clean this data but it did not explicitly state to do so)
+# so i will leave it there for now
+#taking in the merged df and filtering to get only ABAT gene, then using sex to sort and then filling each with icu status color.
+
+
+ggplot(merged_df %>% filter(X == "ABAT"), aes(x = sex, y = value, fill = icu_status)) +
+  geom_boxplot() +
+  labs(
+    title = "ABAT expression by Sex and ICU status",x = "Sex",y = "ABAT Expression",fill = "ICU status")
+
+
+
+```
+
