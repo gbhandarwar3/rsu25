@@ -52,7 +52,7 @@ df_new_long
 # merged now the both dataframes based on participant id column. 
 
 merged_df <- merge(df_new_long, genetable2, by = "participant_id")
-merged_df
+head(merged_df)
 ```
 ```{r}
 str(merged_df)
@@ -98,7 +98,7 @@ ggplot(merged_df %>% filter(X=="ABAT"), aes(x=value)) + geom_histogram(bins=10,c
 
 ```
 ```{r}
-# SCATTER PLOT OF CONTINUOUS COVAR WHICH IS FERRITIN AND THE GENE WHICH IS ABAT
+# SCATTER PLOT OF CONTINUOUS COVAR WHICH IS AGE AND THE GENE WHICH IS ABAT
 # it is first filtering by gene which is ABAT IN THIS CASE, THEN TAKING OUR AGE FOR THOSE IN ABAT, AND THEN THE EXPRESSION VALUES AND THEN PLOTTING IT. 
 # intervals for ages
 
@@ -126,6 +126,62 @@ ggplot(merged_df %>% filter(X == "ABAT"), aes(x = sex, y = value, fill = icu_sta
     title = "ABAT expression by Sex and ICU status",x = "Sex",y = "ABAT Expression",fill = "ICU status")
 
 
+
+```
+
+
+```{r}
+# Function for plots generation AT THE same time with added GENE taking capacity and cat covar of any sort
+# my function is just called make gene plots
+# for loop from class problem, for gene in genes list, genes list is given as a c() vlist
+# NEW GENES CHOSEN:
+
+# for gene in genes is the loop, and it will iterate through out given list of genes to do a plot for each based on the criteria and co-vars, categorical and more chosen. my catcovar1 and catcovar 2 in this case and continuous covar of any chocie can be put as well
+make_gene_plots <- function(data, genes, cont_cov, cat_cov1, cat_cov2) {
+  for (gene in genes) {
+    # INDEXING INTO THE GENE DATA GIVEN THE DF (any)
+    gene_data <- data[data$X == gene, ]
+
+    # MAKING THE HISTOGRAM USING MY OG CODE and color schemes, margins, fonts
+    p1 <- ggplot(gene_data, aes(x = value)) +
+      geom_histogram(bins = 10, color = "white", fill = "pink") +
+      labs(title = paste("Distribution of", gene, "Expression"),
+           x = paste(gene, "Gene Expression"),y = "Count/Frequency") + theme_classic(base_size = 13)
+    print(p1)
+    
+    # MAKING PLOT 2 WHICH IS SCATTER USING og CODE COLORS AND VALS for margins, fonts and such
+    p2 <- ggplot(gene_data, aes_string(x = cont_cov, y = "value")) +
+      geom_point(alpha = 0.7) +
+      geom_smooth(method = "lm", se = FALSE, color = "red") +
+      labs(title = paste(gene, "Expression vs", cont_cov),x = cont_cov,y = paste(gene, "Expression")) +
+      theme_classic(base_size = 13)
+    print(p2)
+
+    # MAKING BOX PLOT USING THE 2 CAT CO-VARS (CAN USE ANY BASED ON CALL)
+    p3 <- ggplot(gene_data, aes_string(x = cat_cov1, y = "value", fill = cat_cov2)) +
+      geom_boxplot() +
+      labs(title = paste(gene, "expression by", cat_cov1, "and", cat_cov2),x = cat_cov1,y = paste(gene, "Expression"),
+           fill = cat_cov2) + theme_classic(base_size = 13)
+    print(p3)
+  }
+}
+```
+
+
+```{r gene_plots, echo=FALSE, message=FALSE, warning=FALSE}
+
+# the function was not displaying the plots normally in rmarkdown so I used gpt to ask why it was not doing so since the function logic itself looked correct. Apparenlty we need to wrap the function call in the invisible function to have it display in Rmarkdown because it supresses the nulls. If there are nulls, it will not display.
+# post wrapping in invisible the plots showed up as normal.
+invisible(make_gene_plots(
+  data = merged_df,
+  genes = c("ABAT", "ABCB8", "AAK1"),
+  cont_cov = "age",
+  cat_cov1 = "sex",
+  cat_cov2 = "icu_status"
+))
+```
+
+```{r}
 
 ```
 
