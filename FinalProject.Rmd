@@ -1,0 +1,403 @@
+---
+title: "Final Project"
+output: html_document
+date: "2025-08-18"
+---
+
+```{r}
+
+# imports
+
+library(tidyverse)
+library(ggplot2)
+library(tidyr)
+library(tidyr)
+library(stringr)
+library(pheatmap)
+library(knitr)
+
+```
+
+
+```{r}
+
+# load the data from files
+
+genetable1 <- read.csv("QBS103_GSE157103_genes.csv")
+genetable2 <- read.csv("QBS103_GSE157103_series_matrix-1.csv")
+
+```
+
+```{r}
+# make this data to long data using pivot longer so we can merge on participant ID
+df_new_long <- genetable1 %>%
+  pivot_longer(
+    cols = -X,
+    names_to = "participant_id",
+    values_to = "value"
+  )
+```
+
+```{r}
+# merged now the both dataframes based on participant id column. 
+
+merged_df <- merge(df_new_long, genetable2, by = "participant_id")
+head(merged_df)
+```
+```{r}
+str(merged_df)
+```
+
+```{r}
+
+# CONVERTING CONTINUOUS VARIABLES of interest TO NUMERIC so it is good for plotting / calculations when needed later
+merged_df$age <- as.numeric(merged_df$age)
+merged_df$ferritin.ng.ml. <- as.numeric(merged_df$ferritin.ng.ml.)
+merged_df$procalcitonin.ng.ml.. <- as.numeric(merged_df$procalcitonin.ng.ml..)
+
+```
+
+
+```{r}
+
+library(ggplot2)
+
+# modified function for plotting from prev assignments to call to take in titles of x and y labels so that our plots have correct titles
+
+# i have kept the unknown sex one sample here since it is useful for EDA when analysing and I can talk about it in the paper.
+
+# I have just used the entire function even though I only need 1 plot for histogram because it is faster to just pick out the charts I need once all are generated.
+# i also now just put gg_save and modfified the function from previously just printing to actually saving the plot with name after to use for publication ready paper in latex
+
+make_gene_plots <- function(
+  data, genes, cont_covs, cat_covs,
+  var_labels = list(),
+  axis_labels = list(
+    hist_x = NULL, hist_y = NULL,
+    scatter_y = NULL,
+    box_y = NULL
+  ),
+  expr_label = "Gene Expression"
+) {
+  stopifnot(length(cont_covs) == 3, length(cat_covs) >= 2)
+
+  pretty_name <- function(var) if (!is.null(var_labels[[var]])) var_labels[[var]] else var
+
+  # for loop to go through my genes chosen data and generate plots for each item chosen
+  for (gene in genes) {
+    gene_data <- data[data$X == gene, , drop = FALSE]
+
+# histogram
+    hist_x_lab <- if (!is.null(axis_labels$hist_x)) axis_labels$hist_x else paste(gene, expr_label)
+    hist_y_lab <- if (!is.null(axis_labels$hist_y)) axis_labels$hist_y else "Count"
+
+    p1 <- ggplot(gene_data, aes(x = value)) +
+      geom_histogram(bins = 10, color = "white", fill = "pink") +
+      labs(
+        title = paste0("Distribution of ", gene, " expression"),
+        x = hist_x_lab,
+        y = hist_y_lab
+      ) +
+      theme_minimal(base_size = 13) +
+      theme(
+        panel.grid.major = element_line(size = 0.4, colour = "grey85"),
+        panel.grid.minor = element_line(size = 0.2, colour = "grey92")
+      )
+    print(p1)
+    ggsave(paste0(gene, "_histogram.png"), p1, width = 6, height = 4, dpi = 300)
+
+# scatter plots 
+    scatter_y_lab <- if (!is.null(axis_labels$scatter_y)) axis_labels$scatter_y else paste(gene, expr_label)
+
+    for (cc in cont_covs) {
+      p_sc <- ggplot(gene_data, aes_string(x = cc, y = "value")) +
+        geom_point(alpha = 0.7) +
+        geom_smooth(method = "lm", se = FALSE, color = "red") +
+        labs(
+          title = paste0(gene, " expression vs ", pretty_name(cc)),
+          x = pretty_name(cc),
+          y = scatter_y_lab
+        ) +
+        theme_minimal(base_size = 13) +
+        theme(
+          panel.grid.major = element_line(size = 0.4, colour = "grey85"),
+          panel.grid.minor = element_line(size = 0.2, colour = "grey92")
+        )
+      print(p_sc)
+      ggsave(paste0(gene, "_scatter_", cc, ".png"), p_sc, width = 6, height = 4, dpi = 300)
+    }
+
+#boxplots
+    box_y_lab <- if (!is.null(axis_labels$box_y)) axis_labels$box_y else paste(gene, expr_label)
+
+    p_box <- ggplot(
+      gene_data,
+      aes_string(x = cat_covs[1], y = "value", fill = cat_covs[2])
+    ) +
+      geom_boxplot(outlier.alpha = 0.7) +
+      labs(
+        title = paste0(gene, " expression by ", pretty_name(cat_covs[1]), " and ", pretty_name(cat_covs[2])),
+        x = pretty_name(cat_covs[1]),
+        y = box_y_lab,
+        fill = pretty_name(cat_covs[2])
+      ) +
+      theme_classic(base_size = 13)
+    print(p_box)
+    ggsave(paste0(gene, "_boxplot.png"), p_box, width = 6, height = 4, dpi = 300)
+  }
+}
+
+
+
+```
+
+```{r}
+
+# modified function call to take in titles of x and y labels so that our plots have correct titles
+# make invisible to display plots (fix around for my old R version) -> provided by GPT
+
+invisible(make_gene_plots(
+  data      = merged_df,
+  genes     = c("ABAT", "ABCB8", "AAK1"),
+  cont_covs = c("age", "ferritin.ng.ml.", "procalcitonin.ng.ml.."),
+  cat_covs  = c("sex", "icu_status"),   # only need 2 cats here
+  var_labels = list(
+    age = "Age (years)",
+    ferritin.ng.ml. = "Ferritin (ng/mL)",
+    procalcitonin.ng.ml.. = "Procalcitonin (ng/mL)",
+    icu_status = "ICU Status",
+    sex = "Sex"
+  ),
+  axis_labels = list(
+    hist_x    = "Expression",
+    hist_y    = "Count",
+    scatter_y = "Expression",
+    box_y     = "Expression"
+  )
+))
+
+
+
+```
+
+```{r}
+# function to make heat map for 10 genes at minimum 
+
+library(dplyr)
+library(tidyr)
+library(pheatmap)
+
+# Upon further research, gene data heatmaps are often clustered so we need clustering here by rows and columns
+
+# make the heatmap and make it pretty but adding custom colors
+
+make_gene_heatmap_pretty <- function(
+  data, genes, cat_covs_for_bars = c("icu_status","sex"),
+  title = "Gene Expression Heatmap (clustered)",
+  clip = 2.5,                       # i play around with this clip to change the look
+  show_colnames = FALSE,
+  fontsize = 12,
+  width_in = 14, height_in = 8,       
+  filename = NULL                     # i will put a filename to save for latex file later
+) {
+  stopifnot(length(cat_covs_for_bars) == 2) # makes sure it has to be 2 cat covars to plot, error handling
+
+  df_sub <- data %>% filter(X %in% genes)
+
+  # we need to change back to wide for heatmap (from long as before)
+  mat_wide <- df_sub %>%
+    select(participant_id, X, value) %>%
+    group_by(X, participant_id) %>%
+    summarise(value = mean(value, na.rm = TRUE), .groups = "drop") %>%
+    pivot_wider(names_from = participant_id, values_from = value) %>%
+    as.data.frame()
+  rownames(mat_wide) <- mat_wide$X; mat_wide$X <- NULL
+  mat <- as.matrix(mat_wide)
+
+  # getting z-scores by row to scale our chart
+  z <- t(scale(t(mat)))                    
+  z[is.nan(z)] <- 0                         
+  z[z >  clip] <-  clip
+  z[z < -clip] <- -clip
+
+  # track bars for annotating our plot using trim, factor
+  annot <- df_sub %>%
+    select(participant_id, all_of(cat_covs_for_bars)) %>%
+    distinct() %>%
+    mutate(across(all_of(cat_covs_for_bars), ~ factor(trimws(.x)))) %>%
+    as.data.frame()
+  rownames(annot) <- annot$participant_id
+  annot$participant_id <- NULL
+
+  # check if samples match and align
+  common_cols <- intersect(colnames(z), rownames(annot))
+  if (length(common_cols) == 0) stop("No overlapping participants.")
+  z <- z[, common_cols, drop = FALSE]
+  annot <- annot[common_cols, , drop = FALSE]
+
+  # change legend titles to correct labels good for publication
+  colnames(annot) <- c("ICU Status", "Sex")
+
+  # choose other colors for heatmap to see more variation
+  pal <- colorRampPalette(c("#313695","#4575b4","#74add1","#e0f3f8",
+                            "#ffffbf","#fdae61","#f46d43","#d73027","#a50026"))(200)
+  
+  # make levels for sex and icu status and set colors for that
+  sex_lv <- levels(annot[["Sex"]])
+  icu_lv <- levels(annot[["ICU Status"]])
+  annotation_colors <- list(
+    `Sex` = setNames(c("#1f78b4","#b2df8a","#33a02c")[seq_along(sex_lv)], sex_lv),
+    `ICU Status` = setNames(c("#fb9a99","#e31a1c")[seq_along(icu_lv)], icu_lv)
+  )
+
+  # break for a clipping added (for no corr overlap and chart clarity)
+  brks <- seq(-clip, clip, length.out = 201)
+
+  # draw for now and then later I will save as png for latex paper
+  if (!is.null(filename)) {
+    png(filename, width = width_in, height = height_in, units = "in", res = 300)
+    on.exit(dev.off(), add = TRUE)
+  }
+
+  pheatmap(z,
+           color = pal, breaks = brks,
+           scale = "none",                      # already z-scored
+           clustering_distance_rows = "euclidean",
+           clustering_distance_cols = "euclidean",
+           clustering_method = "complete",
+           annotation_col = annot,
+           annotation_colors = annotation_colors,
+           show_rownames = TRUE, show_colnames = show_colnames,
+           fontsize = fontsize, border_color = NA,
+           main = title)
+}
+
+
+```
+
+
+```{r}
+
+# I chose 10 genes of my choice to plot for the heatmap
+
+genes_for_heatmap <- c(
+  "ABAT","ABCB8","AAK1",
+  "A1BG","A1CF","A2M",
+  "A4GALT","AAAS","ABCB5","A4GNT"
+)
+
+# make the heatmap and make it pretty but adding custom colors
+make_gene_heatmap_pretty(
+  data = merged_df,
+  genes = genes_for_heatmap,
+  cat_covs_for_bars = c("icu_status","sex"),
+  title = "Gene Expression Clustered Heatmap",
+  clip = 2.5,            
+  fontsize = 12
+)
+
+# save the heatmap for later use, i comment out first part of the print to gen bc then it prevents it from overshadowing the second call when saving it.
+
+make_gene_heatmap_pretty(
+  data = merged_df,
+  genes = genes_for_heatmap,
+  cat_covs_for_bars = c("icu_status","sex"),
+  title = "Gene Expression Clustered Heatmap",
+  clip = 2.5,
+  fontsize = 12,
+  filename = "heatmap_genes.png",
+  width_in = 20, height_in = 10 
+)
+
+
+
+```
+
+
+```{r}
+
+# SUMMARY statistics TABLE for our data 3 cat covars and 2 cont covars, strat by icu status
+
+
+# install.packages("gtsummary")
+# i commented it out since I already downloaded it
+#install.packages("gt")
+# GT SUMMARY PACKAGE (good for biomed data) citation:
+# Sjoberg DD, Whiting K, Curry M, Lavery JA, Larmarange J. Reproducible summary tables with the gtsummary package.The R Journal 2021;13:570–80. https://doi.org/10.32614/RJ-2021-053.
+
+library(gtsummary)
+library(gt)
+
+# using gtsummary library to make tables
+# documentation ia from gtsummary provided in latex bib
+df_abat <- merged_df[merged_df$X == "ABAT", ]
+
+tab <- df_abat %>%
+  select(age, ferritin.ng.ml., procalcitonin.ng.ml..,
+         sex, icu_status, mechanical_ventilation) %>%
+  tbl_summary(
+    by = icu_status,
+    statistic = list(
+      all_continuous()   ~ "{mean} ({sd}) | {median} [{p25}, {p75}]",
+      all_categorical()  ~ "{n} ({p}%)"
+    ),
+    missing = "no"
+  ) %>%
+  modify_caption("**Summary Table**  \nStratified by ICU Status") 
+
+# displaying table in markdown
+tab
+
+
+```
+
+
+```{r}
+# convert code to latex for the report
+
+tab %>%
+  as_gt() %>%
+  gt::as_latex() %>%
+  cat()
+
+```
+
+```{r}
+
+# New Plot-type for data using gg-plot
+# plot type is a ridgeline plot
+
+# ridgeline plot to see distributions via expression based on ICU STATUS
+# i wanted to investigate if certain genes' expression changes based on ICU Status
+
+library(dplyr)
+library(ggplot2)
+library(ggridges)
+
+p <- merged_df %>%
+  mutate(
+    X = trimws(X),
+    icu_status = trimws(icu_status)
+  ) %>%
+  filter(X %in% c("ABAT","ABCB8","AAK1","A1BG","A1CF","A2M","A4GALT","AAAS","AADAC","A4GNT")) %>%
+  ggplot(aes(x = value, y = X, fill = X)) +
+  geom_density_ridges(scale = 1.2, rel_min_height = 0.01, color = NA, alpha = 0.8) +
+  guides(fill = "none") +
+  labs(
+    x = "Expression",
+    y = "Gene",
+    title = "Expression Distributions by gene by ICU status"
+  ) +
+  facet_wrap(~icu_status) +
+  theme_minimal(base_size = 13)
+
+ggsave("ridge_plot.png", plot = p, width = 10, height = 6, units = "in", dpi = 300)
+
+#display p to check
+p
+
+
+```
+
+
+
